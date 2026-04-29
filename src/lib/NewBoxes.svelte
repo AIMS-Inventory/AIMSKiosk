@@ -5,6 +5,7 @@
   export let knownBoxes: any[] = [];
   export let sendEvent: (eventName: string, payload: any) => void;
   export let sendRequest: (eventName: string, payload?: any) => Promise<any>;
+  export let voiceCommand: string | null = null;
 
   let activeWizardBox: string | null = null;
   let wizardStep: 'identity' | 'pills' | 'placement' = 'identity';
@@ -84,6 +85,76 @@
 
   function isKnown(id: string) {
     return knownBoxes.some(kb => kb.code.toString() === id || kb.name === id);
+  }
+
+  let lastVoiceCommand = '';
+
+  function processVoiceCommand(raw: string) {
+    const cmd = (raw || '').toLowerCase().trim();
+    console.debug('[NewBoxes] voice command:', cmd);
+
+    if (cmd.includes('cancel') || cmd.includes('stop') || cmd.includes('abort')) {
+      activeWizardBox = null;
+      return;
+    }
+
+    const boxMatch = cmd.match(/\b(?:register|register box|start registration for|start registration|register box)\s+([0-9a-zA-Z_-]+)/i)
+      || cmd.match(/\bbox\s+([0-9a-zA-Z_-]+)/i);
+    if (boxMatch) {
+      const id = boxMatch[1];
+      startRegistration(id);
+      return;
+    }
+
+    if (cmd === 'register' || cmd.includes('register new') || cmd.includes('start registration')) {
+      const id = unknownBoxIds && unknownBoxIds.length > 0 ? unknownBoxIds[0].toString() : null;
+      if (id) startRegistration(id);
+      return;
+    }
+
+    if (!activeWizardBox) return;
+
+    if (wizardStep === 'identity') {
+      if (cmd.includes('use mock') || cmd.includes('mock user')) {
+        selectPerson({id: 'mock_user', name: 'Mock User'});
+        return;
+      }
+
+      for (const person of Object.values(recognizedFaces)) {
+        const name = (person.name || '').toLowerCase();
+        if (name && cmd.includes(name)) {
+          selectPerson(person);
+          return;
+        }
+      }
+    }
+
+    if (wizardStep === 'pills') {
+      if (cmd.includes('capture') || cmd.includes('take') || cmd.includes('scan') || cmd.includes('detect')) {
+        capturePills();
+        return;
+      }
+      if (cmd.includes('retake')) {
+        retakePills();
+        return;
+      }
+      if (cmd.includes('confirm') || cmd.includes('continue') || cmd.includes('next')) {
+        if (capturedPills !== null) confirmPills();
+        return;
+      }
+    }
+
+    if (wizardStep === 'placement') {
+      if (cmd.includes('placed') || cmd.includes('i placed') || cmd.includes('finish') || cmd.includes('done')) {
+        finishRegistration();
+        return;
+      }
+    }
+  }
+
+  $: if (voiceCommand && voiceCommand !== lastVoiceCommand) {
+    lastVoiceCommand = voiceCommand;
+    processVoiceCommand(voiceCommand);
   }
 </script>
 

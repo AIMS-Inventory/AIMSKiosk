@@ -18,6 +18,7 @@
   };
 
   let activeTab: 'current' | 'new' = 'current';
+  let latestVoiceCommand: string | null = null;
 
   function connect() {
     try {
@@ -108,6 +109,7 @@
 
   function handleVoiceCommand(event: CustomEvent<{ command: string }>) {
     const cmd = event.detail.command;
+    latestVoiceCommand = cmd;
     if (cmd.includes('current') || cmd.includes('old boxes') || cmd.includes('known boxes')) {
       activeTab = 'current';
     } else if (cmd.includes('new') || cmd.includes('unknown')) {
@@ -158,7 +160,8 @@
         shelfInfo={heartbeatData.shelf_info}
         knownBoxes={heartbeatData.known_boxes}
         {sendEvent}
-        {sendRequest} />
+        {sendRequest}
+        voiceCommand={latestVoiceCommand} />
     {/if}
   </div>
 </main>
