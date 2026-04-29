@@ -32,9 +32,15 @@
     capturing = true;
     captureError = null;
     try {
+      console.debug('[NewBoxes] Requesting get_on_screen_pills for box:', activeWizardBox);
       const response = await sendRequest('get_on_screen_pills');
+      console.debug('[NewBoxes] get_on_screen_pills response:', response);
+      if (response.pills === undefined) {
+        console.warn('[NewBoxes] Response missing "pills" field. Full response:', response);
+      }
       capturedPills = response.pills ?? [];
     } catch (e: any) {
+      console.error('[NewBoxes] capturePills error:', e);
       captureError = e.message ?? 'Failed to capture pills';
     } finally {
       capturing = false;
@@ -56,16 +62,23 @@
 
   function finishRegistration() {
     const shelf = shelfInfo[assignedShelf!];
-    const takenPositions = Object.keys(shelf.boxes).map(Number);
+    console.debug('[NewBoxes] finishRegistration — assignedShelf:', assignedShelf, 'shelfInfo entry:', shelf);
+    if (!shelf) {
+      console.error('[NewBoxes] finishRegistration aborted — shelf not found in shelfInfo for key:', assignedShelf, 'shelfInfo:', shelfInfo);
+      return;
+    }
+    const takenPositions = Object.keys(shelf.boxes ?? {}).map(Number);
     const position = takenPositions.length > 0 ? Math.max(...takenPositions) + 1 : 0;
 
-    sendEvent('register_box', {
+    const payload = {
       box_id: activeWizardBox,
       placed_by: selectedPerson.name,
       shelf_code: shelf.code,
       position,
       pills: capturedPills ?? []
-    });
+    };
+    console.debug('[NewBoxes] Sending register_box event:', payload);
+    sendEvent('register_box', payload);
     activeWizardBox = null;
   }
 

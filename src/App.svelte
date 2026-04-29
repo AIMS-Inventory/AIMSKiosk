@@ -26,19 +26,37 @@
       console.error(e);
       return;
     }
-    ws.onopen = () => { status = 'CONNECTED'; };
+    ws.onopen = () => {
+      status = 'CONNECTED';
+      console.debug('[WS] Connected to', wsUrl);
+    };
     ws.onmessage = (event) => {
+      console.debug('[WS] Raw message received:', event.data);
       try {
         const data = JSON.parse(event.data);
+        console.debug('[WS] Parsed message:', data);
         if (data.request_id && pendingRequests.has(data.request_id)) {
+          console.debug('[WS] Resolving pending request id:', data.request_id, 'with:', data);
           pendingRequests.get(data.request_id)!.resolve(data);
           pendingRequests.delete(data.request_id);
         } else if (data.unknown_box_ids !== undefined) {
+          console.debug('[WS] Heartbeat update:', data);
           heartbeatData = { ...heartbeatData, ...data };
+        } else {
+          console.warn('[WS] Unhandled message (no matching request_id, no unknown_box_ids):', data);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('[WS] Failed to parse message. Raw data was:', event.data, 'Error:', e);
+      }
     };
-    ws.onclose = () => { status = 'DISCONNECTED'; ws = null; };
+    ws.onclose = (event) => {
+      console.debug('[WS] Disconnected. Code:', event.code, 'Reason:', event.reason || '(none)', 'Clean:', event.wasClean);
+      status = 'DISCONNECTED';
+      ws = null;
+    };
+    ws.onerror = (event) => {
+      console.error('[WS] Socket error event:', event);
+    };
   }
 
   function toggleConnection() {
@@ -51,10 +69,12 @@
 
   function sendEvent(eventName: string, payload: any) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[WS] sendEvent failed — not connected. Event:', eventName, 'Payload:', payload);
       alert('Not connected to server!');
       return;
     }
     const fullMessage = { event: eventName, ...payload };
+    console.debug('[WS] Sending event:', fullMessage);
     ws.send(JSON.stringify(fullMessage));
   }
 
@@ -64,12 +84,15 @@
   function sendRequest(eventName: string, payload: any = {}): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error('[WS] sendRequest failed — not connected. Event:', eventName, 'Payload:', payload);
         reject(new Error('Not connected to server'));
         return;
       }
       const request_id = crypto.randomUUID();
+      const fullMessage = { event: eventName, request_id, ...payload };
+      console.debug('[WS] Sending request:', fullMessage);
       pendingRequests.set(request_id, { resolve, reject });
-      ws.send(JSON.stringify({ event: eventName, request_id, ...payload }));
+      ws.send(JSON.stringify(fullMessage));
     });
   }
 

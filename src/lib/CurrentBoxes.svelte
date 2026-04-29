@@ -18,6 +18,7 @@
   });
 
   function removeBox(boxId: string) {
+    console.debug('[CurrentBoxes] Sending remove_box for id:', boxId);
     sendEvent('remove_box', { box_id: boxId });
   }
 </script>
